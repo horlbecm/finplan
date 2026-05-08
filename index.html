@@ -88,6 +88,9 @@
     .txn-right{text-align:right;flex-shrink:0;margin-left:10px;}
     .txn-amount{font-size:0.92rem;font-family:'DM Mono',monospace;}
     .txn-date{font-size:0.68rem;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:2px;}
+    .txn-running-bal{font-size:0.65rem;font-family:'DM Mono',monospace;margin-top:3px;padding:1px 5px;border-radius:4px;display:inline-block;}
+    .bal-pos{color:var(--accent-green);background:rgba(104,211,145,0.1);}
+    .bal-neg{color:var(--accent-red);background:rgba(252,129,129,0.1);}
     .amount-in{color:var(--accent-green);}
     .amount-out{color:var(--accent-red);}
     .badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:0.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.06em;margin-right:4px;}
@@ -2121,8 +2124,16 @@ function renderTxnList(){
   if(!list)return;
   const txns=getFilteredTxns();
   if(!txns.length){list.innerHTML='<div class="empty-state">No transactions match this filter.<br/>Tap + to add one.</div>';return;}
-  list.innerHTML=txns.map(t=>`
-    <div class="txn-item" onclick="openTxnModal(state.transactions.find(x=>x.id==='${t.id}'))">
+  const opening=parseFloat(state.settings.opening_balance)||0;
+  // Compute running balance per row using ALL transactions sorted by date (not just filtered)
+  const allSorted=state.transactions.filter(t=>t.status==='Actual'||t.status==='Forecast').sort((a,b)=>a.date>b.date?1:-1);
+  const runMap=new Map();
+  let run=opening;
+  allSorted.forEach(t=>{run+=t.amount;runMap.set(t.id,run);});
+  list.innerHTML=txns.map(t=>{
+    const bal=runMap.get(t.id);
+    const balStr=bal!==undefined?`<div class="txn-running-bal ${bal>=0?'bal-pos':'bal-neg'}">${fmtD(bal)}</div>`:'';
+    return`<div class="txn-item" onclick="openTxnModal(state.transactions.find(x=>x.id==='${t.id}'))">
       <div class="txn-left">
         <div class="txn-title">${t.description}</div>
         <div class="txn-meta"><span class="badge badge-${t.status.toLowerCase()}">${t.status}</span><span class="badge badge-${t.type.toLowerCase()}">${t.type}</span>${t.category}</div>
@@ -2130,8 +2141,10 @@ function renderTxnList(){
       <div class="txn-right">
         <div class="txn-amount ${t.amount>=0?'amount-in':'amount-out'}">${fmtD(t.amount)}</div>
         <div class="txn-date">${fmtDate(t.date)}</div>
+        ${balStr}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   updateRunningBalance();
   renderMonthlyTab();
   renderRecurringTab();
@@ -4116,21 +4129,11 @@ async function syncSheet(){
     await ensureSheetTab(TXN_SHEET, TXN_HEADERS);
     await ensureSheetTab(SET_SHEET, ['key','value']);
 
-    // Merge: snapshot local first, pull sheet, merge (local wins by id), push result
-    const localTxns = [...state.transactions];
-    const localSettings = {...state.settings};
-
+    // Pull first (sheet is master), then push local additions
     await pullTransactions();
-    const sheetTxns = [...state.transactions];
+    await pullSettings();
 
-    const merged = new Map();
-    sheetTxns.forEach(t => merged.set(t.id, t));
-    localTxns.forEach(t => merged.set(t.id, t));
-    state.transactions = Array.from(merged.values());
-
-    Object.assign(state.settings, localSettings);
-    saveLocalData();
-
+    // Push everything back up (merge: local wins for any id not in sheet)
     await pushTransactions();
     await pushSettings();
 

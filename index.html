@@ -4091,7 +4091,7 @@ async function syncSheet(){
     const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
     syncStatusEl(`✓ Synced at ${now}`,'var(--accent-green)');
     updateDashboard();
-    renderTransactions();
+    renderTxnList();
     renderSettings();
     showToast('Sync complete.');
   }catch(e){

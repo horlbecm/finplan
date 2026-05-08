@@ -4116,11 +4116,21 @@ async function syncSheet(){
     await ensureSheetTab(TXN_SHEET, TXN_HEADERS);
     await ensureSheetTab(SET_SHEET, ['key','value']);
 
-    // Pull first (sheet is master), then push local additions
-    await pullTransactions();
-    await pullSettings();
+    // Merge: snapshot local first, pull sheet, merge (local wins by id), push result
+    const localTxns = [...state.transactions];
+    const localSettings = {...state.settings};
 
-    // Push everything back up (merge: local wins for any id not in sheet)
+    await pullTransactions();
+    const sheetTxns = [...state.transactions];
+
+    const merged = new Map();
+    sheetTxns.forEach(t => merged.set(t.id, t));
+    localTxns.forEach(t => merged.set(t.id, t));
+    state.transactions = Array.from(merged.values());
+
+    Object.assign(state.settings, localSettings);
+    saveLocalData();
+
     await pushTransactions();
     await pushSettings();
 

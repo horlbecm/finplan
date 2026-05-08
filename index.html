@@ -1472,7 +1472,7 @@
   </div>
 
     <!-- AI INSIGHTS TAB — Session 10 -->
-    <div id="ret-tab-insights" style="display:none;overflow:hidden;flex-direction:column;">
+    <div id="ret-tab-insights" style="display:none;overflow:hidden;flex-direction:column;height:100%;">
 
       <!-- Sub-tabs -->
       <div style="padding:8px 16px 0;flex-shrink:0;">
@@ -2491,16 +2491,20 @@ function update529Display(){
 // ═══════════════════════════════════════════
 function setRetTab(tab){
   state.retTab=tab;
-  const blockTabs=['estate','insights'];
+  const blockTabs=['estate'];
+  const flexColTabs=['insights'];
   ['accounts','income','pensions','ss','529','projection','tax','scenarios','estate','insights'].forEach(t=>{
     const el=document.getElementById('ret-tab-'+t);
     if(!el)return;
     if(t===tab){
-      el.style.display=blockTabs.includes(t)?'block':'flex';
+      if(blockTabs.includes(t)) el.style.display='block';
+      else if(flexColTabs.includes(t)) el.style.display='flex';
+      else el.style.display='flex';
+      el.style.flexDirection=flexColTabs.includes(t)?'column':'';
       el.style.flex='1';
       el.style.minHeight='0';
       el.style.height='100%';
-      el.style.overflowY='auto';
+      el.style.overflowY=flexColTabs.includes(t)?'hidden':'auto';
     } else {
       el.style.display='none';
     }

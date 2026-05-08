@@ -473,10 +473,10 @@
         <button class="tab-btn" onclick="setRetTab('insights')">AI Insights</button>
       </div>
     </div>
-    <div id="ret-tab-container" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
+    <div id="ret-tab-container" style="flex:1;min-height:0;overflow:hidden;position:relative;">
 
     <!-- ACCOUNTS TAB -->
-    <div id="ret-tab-accounts" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-accounts" style="display:block;flex:1;min-height:0;overflow-y:auto;padding:0 16px 80px;height:100%;">
       <div style="margin-top:4px;">
         <div class="portfolio-total-banner">
           <div class="portfolio-total-label">Total Portfolio</div>
@@ -2496,14 +2496,23 @@ function setRetTab(tab){
     const el=document.getElementById('ret-tab-'+t);
     if(!el)return;
     if(t===tab){
-      el.style.display='flex';
-      el.style.flexDirection='column';
-      el.style.flex='1';
-      el.style.minHeight='0';
-      el.style.overflowY= t==='insights' ? 'hidden' : 'auto';
+      if(t==='insights'){
+        el.style.display='flex';
+        el.style.flexDirection='column';
+        el.style.flex='1';
+        el.style.minHeight='0';
+        el.style.overflowY='hidden';
+      } else {
+        el.style.display='block';
+        el.style.flex='1';
+        el.style.minHeight='0';
+        el.style.overflowY='auto';
+        el.style.height='100%';
+      }
     } else {
       el.style.display='none';
       el.style.flex='0';
+      el.style.height='';
     }
   });
   document.querySelectorAll('#ret-tabs .tab-btn').forEach((b,i)=>{
@@ -3681,15 +3690,25 @@ function setInsightsTab(tab){
     const el=document.getElementById('insights-tab-'+t);
     if(!el)return;
     if(t===tab){
-      el.style.display='flex';
-      el.style.flexDirection='column';
-      el.style.flex='1';
-      el.style.minHeight='0';
-      el.style.overflowY= t==='advisor' ? 'hidden' : 'auto';
-      el.style.padding= t==='advisor' ? '0' : '12px 16px 80px';
+      if(t==='advisor'){
+        el.style.display='flex';
+        el.style.flexDirection='column';
+        el.style.flex='1';
+        el.style.minHeight='0';
+        el.style.overflowY='hidden';
+        el.style.padding='0';
+      } else {
+        el.style.display='block';
+        el.style.flex='1';
+        el.style.minHeight='0';
+        el.style.overflowY='auto';
+        el.style.height='100%';
+        el.style.padding='12px 16px 80px';
+      }
     } else {
       el.style.display='none';
-      el.style.flex='';
+      el.style.flex='0';
+      el.style.height='';
     }
   });
   document.querySelectorAll('#insights-subtabs .tab-btn').forEach((b,i)=>{

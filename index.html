@@ -1338,7 +1338,7 @@
   </div>
 
     <!-- ESTATE TAB — Session 9 -->
-    <div id="ret-tab-estate" style="display:none;flex:1;overflow-y:auto;padding:0 16px;">
+    <div id="ret-tab-estate" style="display:none;overflow-y:auto;padding:0 16px;">
       <div style="margin-top:4px;">
 
         <div class="info-note">
@@ -1471,7 +1471,7 @@
   </div>
 
     <!-- AI INSIGHTS TAB — Session 10 -->
-    <div id="ret-tab-insights" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+    <div id="ret-tab-insights" style="display:none;overflow:hidden;flex-direction:column;">
 
       <!-- Sub-tabs -->
       <div style="padding:8px 16px 0;flex-shrink:0;">
@@ -2489,9 +2489,18 @@ function update529Display(){
 // ═══════════════════════════════════════════
 function setRetTab(tab){
   state.retTab=tab;
+  const flexTabs=['accounts','income','pensions','ss','529','projection','tax','scenarios'];
+  const blockTabs=['estate','insights'];
   ['accounts','income','pensions','ss','529','projection','tax','scenarios','estate','insights'].forEach(t=>{
     const el=document.getElementById('ret-tab-'+t);
-    if(el)el.style.display=t===tab?(t==='insights'?'flex':'flex'):'none';
+    if(!el)return;
+    if(t===tab){
+      el.style.display=blockTabs.includes(t)?'block':'flex';
+      el.style.flex='1';
+      el.style.minHeight='0';
+    } else {
+      el.style.display='none';
+    }
   });
   document.querySelectorAll('#ret-tabs .tab-btn').forEach((b,i)=>{
     b.classList.toggle('active',['accounts','income','pensions','ss','529','projection','tax','scenarios','estate','insights'][i]===tab);

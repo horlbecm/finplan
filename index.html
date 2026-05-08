@@ -453,7 +453,7 @@
 
   <!-- RETIREMENT (Module 2) -->
   <div class="screen" id="screen-retirement">
-    <div class="app-header">
+    <div class="app-header" style="flex-shrink:0;">
       <div class="header-logo">Fin<span>Plan</span></div>
       <div class="header-user">
         <button class="btn btn-sm btn-secondary" onclick="saveM2Data()">Save</button>
@@ -473,6 +473,7 @@
         <button class="tab-btn" onclick="setRetTab('insights')">AI Insights</button>
       </div>
     </div>
+    <div id="ret-tab-container" style="flex:1;min-height:0;position:relative;overflow:hidden;display:flex;flex-direction:column;">
 
     <!-- ACCOUNTS TAB -->
     <div id="ret-tab-accounts" style="flex:1;overflow-y:auto;padding:0 16px;">
@@ -1533,7 +1534,8 @@
       </div>
 
     </div>
-  </div>
+    </div><!-- end ret-tab-container -->
+  </div><!-- end screen-retirement -->
   <div class="screen" id="screen-reports">
     <div class="app-header">
       <div class="header-logo">Fin<span>Plan</span></div>
@@ -2489,7 +2491,6 @@ function update529Display(){
 // ═══════════════════════════════════════════
 function setRetTab(tab){
   state.retTab=tab;
-  const flexTabs=['accounts','income','pensions','ss','529','projection','tax','scenarios'];
   const blockTabs=['estate','insights'];
   ['accounts','income','pensions','ss','529','projection','tax','scenarios','estate','insights'].forEach(t=>{
     const el=document.getElementById('ret-tab-'+t);
@@ -2498,6 +2499,8 @@ function setRetTab(tab){
       el.style.display=blockTabs.includes(t)?'block':'flex';
       el.style.flex='1';
       el.style.minHeight='0';
+      el.style.height='100%';
+      el.style.overflowY='auto';
     } else {
       el.style.display='none';
     }

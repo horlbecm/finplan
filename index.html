@@ -476,7 +476,7 @@
     <div id="ret-tab-container" style="flex:1;min-height:0;overflow:hidden;position:relative;">
 
     <!-- ACCOUNTS TAB -->
-    <div id="ret-tab-accounts" style="display:block;flex:1;min-height:0;overflow-y:auto;padding:0 16px 80px;height:100%;">
+    <div id="ret-tab-accounts" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
         <div class="portfolio-total-banner">
           <div class="portfolio-total-label">Total Portfolio</div>
@@ -2496,23 +2496,17 @@ function setRetTab(tab){
     const el=document.getElementById('ret-tab-'+t);
     if(!el)return;
     if(t===tab){
-      if(t==='insights'){
-        el.style.display='flex';
-        el.style.flexDirection='column';
-        el.style.flex='1';
-        el.style.minHeight='0';
-        el.style.overflowY='hidden';
-      } else {
-        el.style.display='block';
-        el.style.flex='1';
-        el.style.minHeight='0';
-        el.style.overflowY='auto';
-        el.style.height='100%';
-      }
+      el.style.position='absolute';
+      el.style.top='0';
+      el.style.left='0';
+      el.style.right='0';
+      el.style.bottom='0';
+      el.style.display= t==='insights' ? 'flex' : 'block';
+      el.style.flexDirection= t==='insights' ? 'column' : '';
+      el.style.overflowY= t==='insights' ? 'hidden' : 'auto';
     } else {
       el.style.display='none';
-      el.style.flex='0';
-      el.style.height='';
+      el.style.position='';
     }
   });
   document.querySelectorAll('#ret-tabs .tab-btn').forEach((b,i)=>{
@@ -3686,29 +3680,30 @@ function runEstateAnalysis(){
 // ═══════════════════════════════════════════
 
 function setInsightsTab(tab){
+  // Make insights tab a relative container for sub-tabs
+  const insightsEl = document.getElementById('ret-tab-insights');
+  if(insightsEl) insightsEl.style.position='relative';
+
+  // Find subtab bar height to offset sub-tab content
+  const subBar = document.getElementById('insights-subtabs')?.closest('div');
+  const subBarH = subBar ? subBar.offsetHeight + 8 : 50;
+
   ['analysis','advisor','actions'].forEach(t=>{
     const el=document.getElementById('insights-tab-'+t);
     if(!el)return;
     if(t===tab){
-      if(t==='advisor'){
-        el.style.display='flex';
-        el.style.flexDirection='column';
-        el.style.flex='1';
-        el.style.minHeight='0';
-        el.style.overflowY='hidden';
-        el.style.padding='0';
-      } else {
-        el.style.display='block';
-        el.style.flex='1';
-        el.style.minHeight='0';
-        el.style.overflowY='auto';
-        el.style.height='100%';
-        el.style.padding='12px 16px 80px';
-      }
+      el.style.position='absolute';
+      el.style.top= subBarH + 'px';
+      el.style.left='0';
+      el.style.right='0';
+      el.style.bottom='0';
+      el.style.display= t==='advisor' ? 'flex' : 'block';
+      el.style.flexDirection= t==='advisor' ? 'column' : '';
+      el.style.overflowY= t==='advisor' ? 'hidden' : 'auto';
+      el.style.padding= t==='advisor' ? '0' : '12px 16px 80px';
     } else {
       el.style.display='none';
-      el.style.flex='0';
-      el.style.height='';
+      el.style.position='';
     }
   });
   document.querySelectorAll('#insights-subtabs .tab-btn').forEach((b,i)=>{

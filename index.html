@@ -2501,6 +2501,7 @@ function setRetTab(tab){
       el.style.display= t==='insights' ? 'flex' : 'block';
       el.style.flexDirection= t==='insights' ? 'column' : '';
       el.style.overflowY= t==='insights' ? 'hidden' : 'auto';
+      // absolute positioned elements are containing blocks for their children
     } else {
       el.style.display='none';
       el.style.position='';
@@ -3677,13 +3678,9 @@ function runEstateAnalysis(){
 // ═══════════════════════════════════════════
 
 function setInsightsTab(tab){
-  // Make insights tab a relative container for sub-tabs
-  const insightsEl = document.getElementById('ret-tab-insights');
-  if(insightsEl) insightsEl.style.position='relative';
-
-  // Find subtab bar height to offset sub-tab content
-  const subBar = document.getElementById('insights-subtabs')?.closest('div');
-  const subBarH = subBar ? subBar.offsetHeight + 8 : 50;
+  // Note: do NOT set position on ret-tab-insights here — setRetTab handles that
+  const subBarWrap = document.querySelector('#ret-tab-insights > div:first-child');
+  const subBarH = subBarWrap ? subBarWrap.offsetHeight : 52;
 
   ['analysis','advisor','actions'].forEach(t=>{
     const el=document.getElementById('insights-tab-'+t);

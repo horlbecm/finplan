@@ -476,7 +476,7 @@
     <div id="ret-tab-container" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
 
     <!-- ACCOUNTS TAB -->
-    <div id="ret-tab-accounts" style="display:none;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-accounts" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
         <div class="portfolio-total-banner">
           <div class="portfolio-total-label">Total Portfolio</div>
@@ -1955,6 +1955,7 @@ function afterSignIn(){
   renderSettings();
   initHomeChart();
   updateDashboard();
+  setRetTab('accounts');
   hideLoading();
 }
 function signOut(){
@@ -2496,13 +2497,13 @@ function setRetTab(tab){
     if(!el)return;
     if(t===tab){
       el.style.display='flex';
-      el.style.flexDirection= t==='insights' ? 'column' : 'column';
+      el.style.flexDirection='column';
       el.style.flex='1';
       el.style.minHeight='0';
       el.style.overflowY= t==='insights' ? 'hidden' : 'auto';
     } else {
       el.style.display='none';
-      el.style.flex='';
+      el.style.flex='0';
     }
   });
   document.querySelectorAll('#ret-tabs .tab-btn').forEach((b,i)=>{

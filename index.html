@@ -10,6 +10,8 @@
   <title>FinPlan</title>
   <link rel="manifest" href="manifest.json"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
     :root{
@@ -1488,6 +1490,7 @@
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <button class="btn btn-primary" style="flex:1;" onclick="generateInsights()">Generate Full Analysis</button>
           <button class="btn btn-secondary btn-sm" onclick="generateInsights()">↺ Refresh</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportFullPDF()" title="Export PDF">⬇ PDF</button>
         </div>
         <div id="insights-loading" style="display:none;text-align:center;padding:24px;color:var(--text-muted);font-family:'DM Mono',monospace;font-size:0.78rem;">
           <div class="loading-dots" style="justify-content:center;margin-bottom:10px;">
@@ -1518,8 +1521,9 @@
         <div class="info-note" style="margin-bottom:10px;">
           <span class="note-icon">📋</span>AI-generated prioritized action plan based on your full financial profile. Regenerates with your latest data.
         </div>
-        <div style="margin-bottom:12px;">
-          <button class="btn btn-primary btn-block" onclick="generateActionPlan()">Generate Action Plan</button>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn btn-primary btn-block" style="flex:1;" onclick="generateActionPlan()">Generate Action Plan</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportSectionPDF('actions-content','Action Plan')" title="Export PDF">⬇ PDF</button>
         </div>
         <div id="actions-loading" style="display:none;text-align:center;padding:24px;color:var(--text-muted);font-family:'DM Mono',monospace;font-size:0.78rem;">
           <div class="loading-dots" style="justify-content:center;margin-bottom:10px;">
@@ -3955,12 +3959,9 @@ async function generateActionPlan(){
 3-5 items per phase. Use specific dollar amounts. Return only valid JSON.`;
 
   try{
-    const raw=await callAdvisor(prompt,'Respond ONLY with valid JSON. No markdown. No code fences. No backticks. Start your response with { and end with }.');
+    const raw=await callAdvisor(prompt,'Respond ONLY with valid JSON. No markdown.');
     let parsed;
-    try{
-      const cleaned=raw.replace(/^[\s\S]*?(\{)/,'$1').replace(/\}[\s\S]*$/,'}').trim();
-      parsed=JSON.parse(cleaned);
-    }
+    try{parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());}
     catch(e){
       if(contentEl)contentEl.innerHTML=renderInsightCard('Action Plan',raw,'var(--accent)');
       if(loadEl)loadEl.style.display='none';
@@ -4181,6 +4182,138 @@ function gisLoaded(){
     hideLoading();
   }
 })();
+
+// ── PDF EXPORT ────────────────────────────────────────────────────────────────
+async function exportSectionPDF(sectionId, title) {
+  const el = document.getElementById(sectionId);
+  if (!el || !el.innerHTML.trim()) {
+    alert('No content to export. Generate the report first.');
+    return;
+  }
+  await _renderPDF([{el, title}], title);
+}
+
+async function exportFullPDF() {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { alert('PDF library not loaded yet. Try again in a moment.'); return; }
+
+  // Collect sections
+  const sections = [
+    { id: 'insights-content',  title: 'Full Analysis' },
+    { id: 'actions-content',   title: 'Action Plan' },
+    { id: 'ret-tab-projection',title: 'Projection' },
+    { id: 'ret-tab-tax',       title: 'Tax & Roth' },
+    { id: 'ret-tab-scenarios', title: 'Scenarios' },
+    { id: 'ret-tab-estate',    title: 'Estate' },
+  ].map(s => ({ el: document.getElementById(s.id), title: s.title }))
+   .filter(s => s.el && s.el.innerHTML.trim());
+
+  if (!sections.length) {
+    alert('No report content found. Generate the AI reports and view the tabs first.');
+    return;
+  }
+
+  await _renderPDF(sections, 'FinPlan — Full Report');
+}
+
+async function _renderPDF(sections, filename) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = 210, pageH = 297, margin = 12;
+  const contentW = pageW - margin * 2;
+  let isFirst = true;
+
+  // Cover page
+  pdf.setFillColor(10, 15, 30);
+  pdf.rect(0, 0, pageW, pageH, 'F');
+  pdf.setDrawColor(99, 179, 237);
+  pdf.setLineWidth(0.5);
+  pdf.line(margin, 60, pageW - margin, 60);
+  pdf.setTextColor(99, 179, 237);
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('FINPLAN', margin, 52);
+  pdf.setTextColor(232, 237, 245);
+  pdf.setFontSize(22);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(filename, margin, 80);
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(139, 163, 192);
+  pdf.text('Mike & Nathalie — Retirement Financial Plan', margin, 92);
+  pdf.text('Generated: ' + new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'}), margin, 100);
+
+  for (const { el, title } of sections) {
+    // Make element temporarily visible and unstyled for capture
+    const prev = { display: el.style.display, overflow: el.style.overflow, height: el.style.height, maxHeight: el.style.maxHeight };
+    el.style.display = 'block';
+    el.style.overflow = 'visible';
+    el.style.height = 'auto';
+    el.style.maxHeight = 'none';
+
+    let canvas;
+    try {
+      canvas = await html2canvas(el, {
+        backgroundColor: '#111827',
+        scale: 1.5,
+        useCORS: true,
+        logging: false,
+        windowWidth: 390,
+      });
+    } catch(e) {
+      el.style.display = prev.display; el.style.overflow = prev.overflow;
+      el.style.height = prev.height; el.style.maxHeight = prev.maxHeight;
+      continue;
+    }
+
+    // Restore
+    el.style.display = prev.display; el.style.overflow = prev.overflow;
+    el.style.height = prev.height; el.style.maxHeight = prev.maxHeight;
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.85);
+    const imgW = contentW;
+    const imgH = (canvas.height / canvas.width) * imgW;
+    const usableH = pageH - margin * 2 - 16; // 16 for section header
+
+    // How many pages does this section need?
+    const totalPages = Math.ceil(imgH / usableH);
+
+    for (let p = 0; p < totalPages; p++) {
+      pdf.addPage();
+      pdf.setFillColor(10, 15, 30);
+      pdf.rect(0, 0, pageW, pageH, 'F');
+
+      // Section header
+      pdf.setDrawColor(99, 179, 237);
+      pdf.setLineWidth(0.3);
+      pdf.line(margin, margin + 6, pageW - margin, margin + 6);
+      pdf.setTextColor(99, 179, 237);
+      pdf.setFontSize(7);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(title.toUpperCase(), margin, margin + 4);
+      if (totalPages > 1) pdf.text(`Page ${p+1}/${totalPages}`, pageW - margin, margin + 4, {align:'right'});
+
+      const srcY = p * usableH;
+      const sliceH = Math.min(usableH, imgH - srcY);
+      const srcYRatio = srcY / imgH;
+      const sliceRatio = sliceH / imgH;
+
+      // Clip to slice of image
+      const sy = srcYRatio * canvas.height;
+      const sh = sliceRatio * canvas.height;
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sh;
+      const ctx = sliceCanvas.getContext('2d');
+      ctx.drawImage(canvas, 0, -sy);
+      const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.85);
+
+      pdf.addImage(sliceData, 'JPEG', margin, margin + 10, imgW, sliceH);
+    }
+  }
+
+  pdf.save(filename.replace(/\s+/g,'-').toLowerCase() + '.pdf');
+}
 </script>
 
 <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()" defer></script>

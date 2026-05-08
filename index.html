@@ -2764,7 +2764,7 @@ async function sendChat(){
   const systemPrompt=buildSystemPrompt(s,totalPortfolio);
   const txnSummary=buildTxnSummary();
   try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':'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','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:systemPrompt,messages:[{role:'user',content:`Current transaction summary:\n${txnSummary}\n\nUser question: ${msg}`}]})});
+    const resp=await fetch('https://finplan-ai.horlbecm.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:systemPrompt,messages:[{role:'user',content:`Current transaction summary:\n${txnSummary}\n\nUser question: ${msg}`}]})});
     const data=await resp.json();
     const reply=data.content&&data.content[0]?data.content[0].text:'No response.';
     thinkEl.textContent=reply;
@@ -3814,9 +3814,9 @@ ${buildFullContext()}
 
 ${systemExtra}`;
 
-  const resp=await fetch('https://api.anthropic.com/v1/messages',{
+  const resp=await fetch('https://finplan-ai.horlbecm.workers.dev',{
     method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':'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','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       model:'claude-sonnet-4-20250514',
       max_tokens:1500,
@@ -3918,9 +3918,9 @@ async function sendRetAdvisor(){
 
   try{
     const systemPrompt=`You are a personal retirement financial advisor for Mike and Nathalie. Direct, specific, data-driven. Use dollar amounts. Flag CPA/attorney when appropriate.\n\n${buildFullContext()}`;
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    const resp=await fetch('https://finplan-ai.horlbecm.workers.dev',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':'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','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:1000,

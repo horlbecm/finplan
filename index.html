@@ -3955,9 +3955,12 @@ async function generateActionPlan(){
 3-5 items per phase. Use specific dollar amounts. Return only valid JSON.`;
 
   try{
-    const raw=await callAdvisor(prompt,'Respond ONLY with valid JSON. No markdown.');
+    const raw=await callAdvisor(prompt,'Respond ONLY with valid JSON. No markdown. No code fences. No backticks. Start your response with { and end with }.');
     let parsed;
-    try{parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());}
+    try{
+      const cleaned=raw.replace(/^[\s\S]*?(\{)/,'$1').replace(/\}[\s\S]*$/,'}').trim();
+      parsed=JSON.parse(cleaned);
+    }
     catch(e){
       if(contentEl)contentEl.innerHTML=renderInsightCard('Action Plan',raw,'var(--accent)');
       if(loadEl)loadEl.style.display='none';

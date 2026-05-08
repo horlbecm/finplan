@@ -473,10 +473,10 @@
         <button class="tab-btn" onclick="setRetTab('insights')">AI Insights</button>
       </div>
     </div>
-    <div id="ret-tab-container" style="flex:1;min-height:0;position:relative;overflow:hidden;">
+    <div id="ret-tab-container" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;">
 
     <!-- ACCOUNTS TAB -->
-    <div id="ret-tab-accounts" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-accounts" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
         <div class="portfolio-total-banner">
           <div class="portfolio-total-label">Total Portfolio</div>
@@ -635,7 +635,7 @@
     </div>
 
     <!-- INCOME STREAMS TAB -->
-    <div id="ret-tab-income" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-income" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
         <div class="info-note">
           <span class="note-icon">ℹ</span>Active income streams are used in Module 1 cash flow. Retirement income streams feed the Module 2 projection engine (Session 6).
@@ -726,7 +726,7 @@
     </div>
 
     <!-- PENSIONS TAB -->
-    <div id="ret-tab-pensions" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-pensions" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
         <div class="info-note">
           <span class="note-icon">ℹ</span>Pension parameters feed directly into the retirement projection engine. The military pension is already active. FedEx DB pension begins at your selected retirement age.
@@ -793,7 +793,7 @@
     </div>
 
     <!-- SS STRATEGY TAB -->
-    <div id="ret-tab-ss" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-ss" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
         <div class="info-note">
           <span class="note-icon">ℹ</span>Select a strategy to use in projections. Mike's FRA is age 67. Nathalie receives spousal benefit (50% of Mike's PIA) — she cannot claim until Mike claims. Mike was born 3/1975; Nathalie born 11/1973.
@@ -874,7 +874,7 @@
     </div>
 
     <!-- 529 TAB -->
-    <div id="ret-tab-529" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-529" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
         <div class="info-note">
           <span class="note-icon">ℹ</span>Each child has two 529 accounts. The Fidelity accounts are earmarked for 529→Roth IRA conversion (15-year rule already satisfied — accounts opened ~2007/2008). The IN CollegeChoice accounts are for qualified college expenses. Lifetime Roth conversion cap: $35,000 per beneficiary.
@@ -946,7 +946,7 @@
     </div>
 
     <!-- PROJECTION TAB — Session 6 -->
-    <div id="ret-tab-projection" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-projection" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
 
         <!-- SCENARIO SELECTOR -->
@@ -1069,7 +1069,7 @@
     </div>
 
     <!-- TAX TAB — Session 7 -->
-    <div id="ret-tab-tax" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-tax" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
 
         <!-- CURRENT TAX PICTURE -->
@@ -1233,7 +1233,7 @@
   </div>
 
     <!-- SCENARIOS TAB — Session 8 -->
-    <div id="ret-tab-scenarios" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-scenarios" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
 
         <div class="info-note">
@@ -1339,7 +1339,7 @@
   </div>
 
     <!-- ESTATE TAB — Session 9 -->
-    <div id="ret-tab-estate" style="position:absolute;top:0;left:0;right:0;bottom:0;overflow-y:auto;padding:0 16px 80px;">
+    <div id="ret-tab-estate" style="display:none;overflow-y:auto;padding:0 16px 80px;">
       <div style="margin-top:4px;">
 
         <div class="info-note">
@@ -1472,7 +1472,7 @@
   </div>
 
     <!-- AI INSIGHTS TAB — Session 10 -->
-    <div id="ret-tab-insights" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;flex-direction:column;overflow:hidden;">
+    <div id="ret-tab-insights" style="display:none;flex-direction:column;overflow:hidden;">
 
       <!-- Sub-tabs -->
       <div style="padding:8px 16px 0;flex-shrink:0;">
@@ -2495,9 +2495,14 @@ function setRetTab(tab){
     const el=document.getElementById('ret-tab-'+t);
     if(!el)return;
     if(t===tab){
-      el.style.display= t==='insights' ? 'flex' : 'block';
+      el.style.display='flex';
+      el.style.flexDirection= t==='insights' ? 'column' : 'column';
+      el.style.flex='1';
+      el.style.minHeight='0';
+      el.style.overflowY= t==='insights' ? 'hidden' : 'auto';
     } else {
       el.style.display='none';
+      el.style.flex='';
     }
   });
   document.querySelectorAll('#ret-tabs .tab-btn').forEach((b,i)=>{
@@ -3675,14 +3680,15 @@ function setInsightsTab(tab){
     const el=document.getElementById('insights-tab-'+t);
     if(!el)return;
     if(t===tab){
-      el.style.display= t==='advisor' ? 'flex' : 'flex';
-      el.style.flexDirection= t==='advisor' ? 'column' : 'column';
+      el.style.display='flex';
+      el.style.flexDirection='column';
       el.style.flex='1';
       el.style.minHeight='0';
       el.style.overflowY= t==='advisor' ? 'hidden' : 'auto';
       el.style.padding= t==='advisor' ? '0' : '12px 16px 80px';
     } else {
       el.style.display='none';
+      el.style.flex='';
     }
   });
   document.querySelectorAll('#insights-subtabs .tab-btn').forEach((b,i)=>{

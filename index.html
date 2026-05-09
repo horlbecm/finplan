@@ -1878,6 +1878,7 @@
 // ═══════════════════════════════════════════
 const state = {
   transactions: [],
+  deletedTxnIds: new Set(),
   cfFilter: 'all',
   cfTab: 'list',
   retTab: 'accounts',
@@ -2010,6 +2011,7 @@ function hideLoading(){const e=document.getElementById('loading');e.classList.ad
 // ═══════════════════════════════════════════
 function saveLocalData(){
   localStorage.setItem('finplan_txns',JSON.stringify(state.transactions));
+  localStorage.setItem('finplan_deleted_ids',JSON.stringify([...state.deletedTxnIds]));
   localStorage.setItem('finplan_accounts',JSON.stringify(state.accounts));
   localStorage.setItem('finplan_income',JSON.stringify(state.incomeStreams));
   localStorage.setItem('finplan_pensions',JSON.stringify(state.pensions));
@@ -2019,6 +2021,7 @@ function saveLocalData(){
 }
 function loadLocalData(){
   try{const t=localStorage.getItem('finplan_txns');if(t)state.transactions=JSON.parse(t);}catch(e){}
+  try{const d=localStorage.getItem('finplan_deleted_ids');if(d)state.deletedTxnIds=new Set(JSON.parse(d));}catch(e){}
   try{const a=localStorage.getItem('finplan_accounts');if(a)Object.assign(state.accounts,JSON.parse(a));}catch(e){}
   try{const i=localStorage.getItem('finplan_income');if(i)Object.assign(state.incomeStreams,JSON.parse(i));}catch(e){}
   try{const p=localStorage.getItem('finplan_pensions');if(p)Object.assign(state.pensions,JSON.parse(p));}catch(e){}
@@ -2081,7 +2084,18 @@ function saveTxn(){
   const signedAmt=type==='Expense'?-Math.abs(amt):Math.abs(amt);
   if(state.editingTxnId){
     const tx=state.transactions.find(t=>t.id===state.editingTxnId);
-    if(tx){Object.assign(tx,{date,description:desc,amount:signedAmt,type,category:cat,status,notes,recurring,frequency});}
+    if(tx){
+      const oldDesc=tx.description, oldAmt=tx.amount;
+      Object.assign(tx,{date,description:desc,amount:signedAmt,type,category:cat,status,notes,recurring,frequency});
+      // If this is a recurring template, update all future auto-generated instances
+      if(recurring){
+        state.transactions.forEach(t=>{
+          if(!t.recurring && t.description===oldDesc && t.amount===oldAmt && t.notes==='Auto-generated recurring' && t.date>=date){
+            Object.assign(t,{description:desc,amount:signedAmt,type,category:cat});
+          }
+        });
+      }
+    }
   } else {
     const newTxn={id:genId(),date,description:desc,amount:signedAmt,type,category:cat,status,notes,recurring,frequency};
     state.transactions.push(newTxn);
@@ -2110,6 +2124,7 @@ function generateRecurring(txn){
 }
 function deleteTxn(){
   if(!state.editingTxnId)return;
+  state.deletedTxnIds.add(state.editingTxnId);
   state.transactions=state.transactions.filter(t=>t.id!==state.editingTxnId);
   saveLocalData();renderTxnList();updateDashboard();closeTxnModal();showToast('Transaction deleted.');
 }
@@ -4152,15 +4167,18 @@ async function syncSheet(){
     // Snapshot local state before pulling sheet
     const localTxns = [...state.transactions];
     const localSettings = {...state.settings};
+    const localDeletedIds = new Set(state.deletedTxnIds);
 
     // Pull sheet data into state
     await pullTransactions();
     await pullSettings();
 
-    // Merge transactions: local wins by id
+    // Merge transactions: local wins by id, deleted IDs are excluded
     const merged = new Map();
     state.transactions.forEach(t => merged.set(t.id, t));
     localTxns.forEach(t => merged.set(t.id, t));
+    // Remove any transaction that was deleted locally
+    localDeletedIds.forEach(id => merged.delete(id));
     state.transactions = Array.from(merged.values());
 
     // Merge settings: local wins

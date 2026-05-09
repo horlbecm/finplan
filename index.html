@@ -3960,39 +3960,59 @@ async function generateActionPlan(){
   if(loadEl)loadEl.style.display='block';
   if(contentEl)contentEl.innerHTML='';
 
-  const prompt=`Generate a prioritized action plan for Mike and Nathalie. Format as JSON with this structure:
-{
-  "now": [{"action": "...", "why": "...", "impact": "..."}],
-  "this_year": [{"action": "...", "why": "...", "impact": "..."}],
-  "before_retirement": [{"action": "...", "why": "...", "impact": "..."}],
-  "at_retirement": [{"action": "...", "why": "...", "impact": "..."}],
-  "ongoing": [{"action": "...", "why": "...", "impact": "..."}]
-}
-3-5 items per phase. Use specific dollar amounts. Return only valid JSON.`;
+  const phases=[
+    {key:'DO NOW',            label:'Do Now',           color:'var(--accent-red)'},
+    {key:'THIS YEAR',         label:'This Year',        color:'var(--accent-gold)'},
+    {key:'BEFORE RETIREMENT', label:'Before Retirement',color:'var(--accent)'},
+    {key:'AT RETIREMENT',     label:'At Retirement',    color:'var(--accent-green)'},
+    {key:'ONGOING',           label:'Ongoing / Annual', color:'var(--text-secondary)'},
+  ];
+
+  const prompt=`Generate a prioritized action plan for Mike and Nathalie using EXACTLY this format. Use specific dollar amounts. 3-5 items per phase.
+
+##DO NOW##
+- ACTION: [what to do] | WHY: [reason] | IMPACT: [dollar impact]
+
+##THIS YEAR##
+- ACTION: [what to do] | WHY: [reason] | IMPACT: [dollar impact]
+
+##BEFORE RETIREMENT##
+- ACTION: [what to do] | WHY: [reason] | IMPACT: [dollar impact]
+
+##AT RETIREMENT##
+- ACTION: [what to do] | WHY: [reason] | IMPACT: [dollar impact]
+
+##ONGOING##
+- ACTION: [what to do] | WHY: [reason] | IMPACT: [dollar impact]
+
+Return only the formatted plan. No JSON. No code fences. No preamble.`;
 
   try{
-    const raw=await callAdvisor(prompt,'Respond ONLY with valid JSON. No markdown.');
-    let parsed;
-    try{parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());}
-    catch(e){
-      if(contentEl)contentEl.innerHTML=renderInsightCard('Action Plan',raw,'var(--accent)');
-      if(loadEl)loadEl.style.display='none';
-      return;
-    }
+    const raw=await callAdvisor(prompt,'Return only the plain text action plan in the exact format specified. No JSON. No code fences. No extra commentary.');
 
-    const phases=[
-      {key:'now',             label:'Do Now',              color:'var(--accent-red)'},
-      {key:'this_year',       label:'This Year',           color:'var(--accent-gold)'},
-      {key:'before_retirement',label:'Before Retirement',  color:'var(--accent)'},
-      {key:'at_retirement',   label:'At Retirement',       color:'var(--accent-green)'},
-      {key:'ongoing',         label:'Ongoing / Annual',    color:'var(--text-secondary)'},
-    ];
+    const sections={};
+    let currentKey=null;
+    raw.split('\n').forEach(line=>{
+      const header=line.match(/^##([^#]+)##/);
+      if(header){currentKey=header[1].trim();sections[currentKey]=[];return;}
+      if(currentKey && line.trim().startsWith('-')){
+        const txt=line.replace(/^-\s*/,'');
+        const actionM=txt.match(/ACTION:\s*([^|]+)/i);
+        const whyM=txt.match(/WHY:\s*([^|]+)/i);
+        const impactM=txt.match(/IMPACT:\s*(.+)/i);
+        sections[currentKey].push({
+          action:actionM?actionM[1].trim():txt,
+          why:whyM?whyM[1].trim():'',
+          impact:impactM?impactM[1].trim():''
+        });
+      }
+    });
 
     if(contentEl){
-      contentEl.innerHTML=phases.filter(p=>parsed[p.key]?.length).map(p=>`
+      const html=phases.filter(p=>sections[p.key]?.length).map(p=>`
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;border-left:3px solid ${p.color};padding:14px;margin-bottom:10px;">
           <div style="font-size:0.65rem;font-family:'DM Mono',monospace;color:${p.color};text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">${p.label}</div>
-          ${parsed[p.key].map((item,i)=>`
+          ${sections[p.key].map((item,i)=>`
             <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;">
               <div style="background:${p.color};color:#0a0f1e;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;flex-shrink:0;margin-top:1px;">${i+1}</div>
               <div>
@@ -4002,6 +4022,7 @@ async function generateActionPlan(){
               </div>
             </div>`).join('')}
         </div>`).join('');
+      contentEl.innerHTML = html || renderInsightCard('Action Plan', raw, 'var(--accent)');
     }
   }catch(e){
     if(contentEl)contentEl.innerHTML=renderInsightCard('Error',
@@ -4083,7 +4104,7 @@ async function pullTransactions(){
     return obj;
   });
   state.transactions = txns;
-  saveLocalData();
+  // saveLocalData handled by syncSheet after merge
 }
 
 async function pushSettings(){
@@ -4107,7 +4128,7 @@ async function pullSettings(){
   });
   const rows = resp.result.values || [];
   rows.forEach(([k,v])=>{ if(k) state.settings[k]=v; });
-  saveLocalData();
+  // saveLocalData handled by syncSheet after merge
 }
 
 async function syncSheet(){
@@ -4128,11 +4149,25 @@ async function syncSheet(){
     await ensureSheetTab(TXN_SHEET, TXN_HEADERS);
     await ensureSheetTab(SET_SHEET, ['key','value']);
 
-    // Pull first (sheet is master), then push local additions
+    // Snapshot local state before pulling sheet
+    const localTxns = [...state.transactions];
+    const localSettings = {...state.settings};
+
+    // Pull sheet data into state
     await pullTransactions();
     await pullSettings();
 
-    // Push everything back up (merge: local wins for any id not in sheet)
+    // Merge transactions: local wins by id
+    const merged = new Map();
+    state.transactions.forEach(t => merged.set(t.id, t));
+    localTxns.forEach(t => merged.set(t.id, t));
+    state.transactions = Array.from(merged.values());
+
+    // Merge settings: local wins
+    Object.assign(state.settings, localSettings);
+    saveLocalData();
+
+    // Push merged result to sheet
     await pushTransactions();
     await pushSettings();
 

@@ -2584,6 +2584,7 @@ function renderSettings(){
   setText('set-plan-to-age',s.plan_to_age);
   setText('set-sheet-id',s.sheet_id||'Not set');
   setText('set-opening-balance',s.opening_balance?('$'+fmt(parseFloat(s.opening_balance)||0)):'$0');
+  setText('set-last-sync',localStorage.getItem('finplan_last_sync')||'Never');
 }
 
 // ═══════════════════════════════════════════
@@ -4237,7 +4238,11 @@ async function syncSheet(){
     await pushDeletedIds(allDeletedIds);
 
     const now=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const syncTs=new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    localStorage.setItem('finplan_last_sync',syncTs);
     syncStatusEl(`✓ Synced at ${now}`,'var(--accent-green)');
+    const lastSyncEl=document.getElementById('set-last-sync');
+    if(lastSyncEl)lastSyncEl.textContent=syncTs;
     updateDashboard();
     renderTxnList();
     renderSettings();

@@ -2000,7 +2000,7 @@ function showScreen(name){
 // UTILS
 // ═══════════════════════════════════════════
 function fmt(n){return new Intl.NumberFormat('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}).format(n);}
-function fmtD(n){return(n<0?'-$':'$')+fmt(Math.abs(n));}
+function fmtD(n){return(n<0?'-$':'$')+new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.abs(n));}
 function fmtDate(d){if(!d)return'';const dt=new Date(d+'T12:00:00');return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function today(){return new Date().toISOString().split('T')[0];}
 let _tt;
@@ -2062,7 +2062,7 @@ function openTxnModal(txn){
   document.getElementById('txn-category').value=txn?txn.category:'Paycheck';
   document.getElementById('txn-status').value=txn?txn.status:'Forecast';
   document.getElementById('txn-notes').value=txn?txn.notes:'';
-  document.getElementById('txn-recurring').checked=txn?txn.recurring:false;
+  document.getElementById('txn-recurring').checked=txn?(txn.recurring===true||txn.recurring==='true'):false;
   toggleRecurringFields();
   document.getElementById('txn-frequency').value=txn?txn.frequency:'Monthly';
   document.getElementById('txn-modal-title').textContent=txn?'Edit Transaction':'Add Transaction';
@@ -2584,7 +2584,7 @@ function renderSettings(){
   setText('set-inflation-rate',s.inflation_rate?(s.inflation_rate+'%'):'—');
   setText('set-plan-to-age',s.plan_to_age);
   setText('set-sheet-id',s.sheet_id||'Not set');
-  setText('set-opening-balance',s.opening_balance?('$'+fmt(parseFloat(s.opening_balance)||0)):'$0');
+  setText('set-opening-balance',fmtD(parseFloat(s.opening_balance)||0));
   setText('set-last-sync',localStorage.getItem('finplan_last_sync')||'Never');
 }
 
@@ -4059,7 +4059,7 @@ const SHEET_ID = '10YsR8MTVdBzWQyVM4ITaBfxn01Vhj4Pitq9-Pe2bD6c';
 const TXN_SHEET = 'Transactions';
 const SET_SHEET = 'Settings';
 const DEL_SHEET = 'Deleted';
-const TXN_HEADERS = ['id','date','description','amount','type','category','status','notes','updated_at'];
+const TXN_HEADERS = ['id','date','description','amount','type','category','status','notes','recurring','frequency','updated_at'];
 
 function syncStatusEl(msg, color='var(--text-muted)'){
   const el=document.getElementById('sync-status');
@@ -4116,7 +4116,8 @@ async function pullTransactions(){
     const obj={};
     headers.forEach((h,i)=>{obj[h]=row[i]||'';});
     obj.amount=parseFloat(obj.amount)||0;
-    obj.deleted=obj.deleted==='true'||obj.deleted===true; // handle legacy rows
+    obj.deleted=obj.deleted==='true'||obj.deleted===true;
+    obj.recurring=obj.recurring==='true'||obj.recurring===true;
     return obj;
   }).filter(t=>t.id);
   state.transactions=txns;

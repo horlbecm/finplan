@@ -4186,7 +4186,14 @@ async function syncSheet(){
       ...state.transactions.filter(t=>t.deleted).map(t=>t.id)
     ]);
     const localLiveTxns=state.transactions.filter(t=>!t.deleted);
-    const localSettings={...state.settings};
+
+    // Only carry forward settings that changed on this device since last sync
+    const lastSyncedSettings=JSON.parse(localStorage.getItem('finplan_settings_synced')||'{}');
+    const localSettingChanges={};
+    Object.keys(state.settings).forEach(k=>{
+      if(String(state.settings[k])!==String(lastSyncedSettings[k]??''))
+        localSettingChanges[k]=state.settings[k];
+    });
 
     // Ensure all tabs exist
     await ensureSheetTab(TXN_SHEET,TXN_HEADERS);
@@ -4216,8 +4223,10 @@ async function syncSheet(){
 
     state.transactions=Array.from(merged.values());
     state.deletedTxnIds=allDeletedIds;
-    Object.assign(state.settings,localSettings);
+    // Sheet's settings win, then apply only locally-changed keys on top
+    Object.assign(state.settings,localSettingChanges);
     saveLocalData();
+    localStorage.setItem('finplan_settings_synced',JSON.stringify(state.settings));
 
     const liveTxnCount=state.transactions.filter(t=>!t.deleted).length;
     const deletedCount=allDeletedIds.size;

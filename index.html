@@ -2044,6 +2044,7 @@ function genId(){return 'T'+(txnIdCounter++);}
 function getFilteredTxns(){
   const f=state.cfFilter;
   return state.transactions.filter(t=>{
+    if(t.deleted)return false;
     if(f==='all')return true;
     if(f==='Income'||f==='Expense'||f==='Transfer')return t.type===f;
     if(f==='Forecast'||f==='Actual')return t.status===f;
@@ -2124,8 +2125,9 @@ function generateRecurring(txn){
 }
 function deleteTxn(){
   if(!state.editingTxnId)return;
+  const tx=state.transactions.find(t=>t.id===state.editingTxnId);
+  if(tx)tx.deleted=true;
   state.deletedTxnIds.add(state.editingTxnId);
-  state.transactions=state.transactions.filter(t=>t.id!==state.editingTxnId);
   saveLocalData();renderTxnList();updateDashboard();closeTxnModal();showToast('Transaction deleted.');
 }
 function setCFFilter(f,el){
@@ -2140,7 +2142,7 @@ function renderTxnList(){
   const txns=getFilteredTxns();
   if(!txns.length){list.innerHTML='<div class="empty-state">No transactions match this filter.<br/>Tap + to add one.</div>';return;}
   const opening=parseFloat(state.settings.opening_balance)||0;
-  const allSorted=state.transactions.filter(t=>t.status==='Actual'||t.status==='Forecast').sort((a,b)=>a.date>b.date?1:-1);
+  const allSorted=state.transactions.filter(t=>!t.deleted&&(t.status==='Actual'||t.status==='Forecast')).sort((a,b)=>a.date>b.date?1:-1);
   const runMap=new Map();
   let run=opening;
   allSorted.forEach(t=>{run+=t.amount;runMap.set(t.id,run);});
@@ -2165,16 +2167,16 @@ function renderTxnList(){
 }
 function updateRunningBalance(){
   const opening=parseFloat(state.settings.opening_balance)||0;
-  const all=state.transactions.filter(t=>t.status==='Actual'||t.status==='Forecast');
+  const all=state.transactions.filter(t=>!t.deleted&&(t.status==='Actual'||t.status==='Forecast'));
   const projected=opening+all.reduce((s,t)=>s+t.amount,0);
-  const actual=opening+state.transactions.filter(t=>t.status==='Actual').reduce((s,t)=>s+t.amount,0);
+  const actual=opening+state.transactions.filter(t=>!t.deleted&&t.status==='Actual').reduce((s,t)=>s+t.amount,0);
   const pb=document.getElementById('cf-bal-proj');const ab=document.getElementById('cf-bal-act');
   if(pb)pb.textContent=fmtD(projected);
   if(ab){ab.textContent=fmtD(actual);ab.className='balance-main '+(actual>=0?'':'');}
 }
 function renderMonthlyTab(){
   const monthly={};
-  state.transactions.forEach(t=>{
+  state.transactions.filter(t=>!t.deleted).forEach(t=>{
     const key=t.date.substring(0,7);
     if(!monthly[key])monthly[key]={income:0,expense:0};
     if(t.amount>0)monthly[key].income+=t.amount;
@@ -2196,7 +2198,7 @@ function renderMonthlyTab(){
   renderMonthlyChart(keys,monthly);
 }
 function renderRecurringTab(){
-  const recur=state.transactions.filter(t=>t.recurring);
+  const recur=state.transactions.filter(t=>!t.deleted&&t.recurring);
   const el=document.getElementById('cf-recurring-list');
   if(!el)return;
   if(!recur.length){el.innerHTML='<div class="empty-state">No recurring templates yet.</div>';return;}
@@ -4054,6 +4056,7 @@ Return only the formatted plan. No JSON. No code fences. No preamble.`;
 const SHEET_ID = '10YsR8MTVdBzWQyVM4ITaBfxn01Vhj4Pitq9-Pe2bD6c';
 const TXN_SHEET = 'Transactions';
 const SET_SHEET = 'Settings';
+const DEL_SHEET = 'Deleted';
 const TXN_HEADERS = ['id','date','description','amount','type','category','status','notes'];
 
 function syncStatusEl(msg, color='var(--text-muted)'){
@@ -4083,43 +4086,61 @@ async function ensureSheetTab(tabName, headers){
 }
 
 async function pushTransactions(){
-  // Convert state.transactions to rows
-  const rows = state.transactions.map(t =>
-    TXN_HEADERS.map(h => t[h] !== undefined ? String(t[h]) : '')
-  );
-  if(rows.length === 0) return;
-  // Clear existing data below header and rewrite
+  // Only push live (non-deleted) transactions; Deleted tab tracks tombstones
+  const liveTxns=state.transactions.filter(t=>!t.deleted);
+  const dataRows=liveTxns.map(t=>TXN_HEADERS.map(h=>t[h]!==undefined?String(t[h]):''));
   await gapi.client.sheets.spreadsheets.values.clear({
-    spreadsheetId: SHEET_ID,
-    range: `${TXN_SHEET}!A2:Z`
+    spreadsheetId:SHEET_ID,range:`${TXN_SHEET}!A1:Z`
   });
   await gapi.client.sheets.spreadsheets.values.update({
-    spreadsheetId: SHEET_ID,
-    range: `${TXN_SHEET}!A2`,
-    valueInputOption: 'RAW',
-    resource:{values: rows}
+    spreadsheetId:SHEET_ID,
+    range:`${TXN_SHEET}!A1`,
+    valueInputOption:'RAW',
+    resource:{values:[TXN_HEADERS,...dataRows]}
   });
 }
 
 async function pullTransactions(){
-  const resp = await gapi.client.sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: `${TXN_SHEET}!A1:Z`
+  const resp=await gapi.client.sheets.spreadsheets.values.get({
+    spreadsheetId:SHEET_ID,range:`${TXN_SHEET}!A1:Z`
   });
-  const rows = resp.result.values || [];
-  if(rows.length < 2) return; // only headers or empty
-  const headers = rows[0];
-  const txns = rows.slice(1).map(row => {
-    const obj = {};
-    headers.forEach((h,i) => {
-      obj[h] = row[i] || '';
-    });
-    // Coerce types
-    obj.amount = parseFloat(obj.amount) || 0;
+  const rows=resp.result.values||[];
+  if(rows.length<2){
+    state.transactions=[]; // sheet is empty — don't keep stale local data as the sheet base
+    return;
+  }
+  const headers=rows[0];
+  const txns=rows.slice(1).map(row=>{
+    const obj={};
+    headers.forEach((h,i)=>{obj[h]=row[i]||'';});
+    obj.amount=parseFloat(obj.amount)||0;
+    obj.deleted=obj.deleted==='true'||obj.deleted===true; // handle legacy rows
     return obj;
+  }).filter(t=>t.id);
+  state.transactions=txns;
+}
+
+async function pullDeletedIds(){
+  try{
+    const resp=await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId:SHEET_ID,range:`${DEL_SHEET}!A2:A`
+    });
+    const rows=resp.result.values||[];
+    return new Set(rows.map(r=>r[0]).filter(Boolean));
+  }catch(e){return new Set();}
+}
+
+async function pushDeletedIds(ids){
+  await gapi.client.sheets.spreadsheets.values.clear({
+    spreadsheetId:SHEET_ID,range:`${DEL_SHEET}!A1:A`
   });
-  state.transactions = txns;
-  // saveLocalData handled by syncSheet after merge
+  const rows=[['id'],...[...ids].map(id=>[id])];
+  await gapi.client.sheets.spreadsheets.values.update({
+    spreadsheetId:SHEET_ID,
+    range:`${DEL_SHEET}!A1`,
+    valueInputOption:'RAW',
+    resource:{values:rows}
+  });
 }
 
 async function pushSettings(){
@@ -4148,7 +4169,6 @@ async function pullSettings(){
 
 async function syncSheet(){
   if(!accessToken){
-    // Trigger OAuth sign-in
     if(!tokenClient){showToast('Google sign-in not ready. Refresh and try again.');return;}
     tokenClient.requestAccessToken({prompt:'consent'});
     return;
@@ -4160,41 +4180,59 @@ async function syncSheet(){
   if(syncBtn)syncBtn.disabled=true;
 
   try{
-    // Ensure tabs exist
-    await ensureSheetTab(TXN_SHEET, TXN_HEADERS);
-    await ensureSheetTab(SET_SHEET, ['key','value']);
+    // Snapshot local state
+    const localDeletedIds=new Set([
+      ...state.deletedTxnIds,
+      ...state.transactions.filter(t=>t.deleted).map(t=>t.id)
+    ]);
+    const localLiveTxns=state.transactions.filter(t=>!t.deleted);
+    const localSettings={...state.settings};
 
-    // Snapshot local state before pulling sheet
-    const localTxns = [...state.transactions];
-    const localSettings = {...state.settings};
-    const localDeletedIds = new Set(state.deletedTxnIds);
+    // Ensure all tabs exist
+    await ensureSheetTab(TXN_SHEET,TXN_HEADERS);
+    await ensureSheetTab(SET_SHEET,['key','value']);
+    await ensureSheetTab(DEL_SHEET,['id']);
 
-    // Pull sheet data into state
+    // Pull everything from sheet
     await pullTransactions();
     await pullSettings();
+    const sheetDeletedIds=await pullDeletedIds();
 
-    // Merge transactions: local wins by id, deleted IDs are excluded
-    const merged = new Map();
-    state.transactions.forEach(t => merged.set(t.id, t));
-    localTxns.forEach(t => merged.set(t.id, t));
-    // Remove any transaction that was deleted locally
-    localDeletedIds.forEach(id => merged.delete(id));
-    state.transactions = Array.from(merged.values());
+    // Union all deleted IDs: local + sheet + any legacy soft-deleted rows in sheet
+    const allDeletedIds=new Set([...localDeletedIds,...sheetDeletedIds]);
+    state.transactions.filter(t=>t.deleted).forEach(t=>allDeletedIds.add(t.id));
 
-    // Merge settings: local wins
-    Object.assign(state.settings, localSettings);
+    // Build merged live transaction set
+    // Sheet is the base (picks up additions from other devices),
+    // then local overlays (picks up additions/edits from this device).
+    // Anything in allDeletedIds is excluded from both.
+    const merged=new Map();
+    state.transactions.forEach(t=>{
+      if(!allDeletedIds.has(t.id))merged.set(t.id,t);
+    });
+    localLiveTxns.forEach(t=>{
+      if(!allDeletedIds.has(t.id))merged.set(t.id,t);
+    });
+
+    state.transactions=Array.from(merged.values());
+    state.deletedTxnIds=allDeletedIds;
+    Object.assign(state.settings,localSettings);
     saveLocalData();
 
-    // Push merged result to sheet
+    const liveTxnCount=state.transactions.filter(t=>!t.deleted).length;
+    const deletedCount=allDeletedIds.size;
+
+    // Push merged state back to sheet
     await pushTransactions();
     await pushSettings();
+    await pushDeletedIds(allDeletedIds);
 
-    const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const now=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
     syncStatusEl(`✓ Synced at ${now}`,'var(--accent-green)');
     updateDashboard();
     renderTxnList();
     renderSettings();
-    showToast('Sync complete.');
+    showToast(`Sync complete — ${liveTxnCount} transactions, ${deletedCount} deleted IDs`);
   }catch(e){
     console.error('Sync error:',e);
     syncStatusEl('Sync failed — see console','var(--accent-red)');

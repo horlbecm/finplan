@@ -1638,8 +1638,9 @@
         <div class="setting-row"><span class="setting-label">Sheet ID</span><button class="setting-btn" onclick="editSetting('sheet_id')"><span id="set-sheet-id" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;display:inline-block;">Not set</span> ›</button></div>
         <div class="setting-row"><span class="setting-label">Opening Balance</span><button class="setting-btn" onclick="editSetting('opening_balance')"><span id="set-opening-balance">$0</span> ›</button></div>
         <div class="setting-row"><span class="setting-label">Last Sync</span><span class="setting-value" id="set-last-sync">Never</span></div>
-        <div style="margin-top:10px;">
+        <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
           <button class="btn btn-secondary btn-block" onclick="syncSheet()">Sync Now</button>
+          <button class="btn btn-secondary btn-block" onclick="stampAllTimestamps()" style="font-size:0.75rem;opacity:0.8;">Stamp All Transactions (one-time fix)</button>
         </div>
       </div>
       <div class="card">
@@ -2087,7 +2088,7 @@ function saveTxn(){
     const tx=state.transactions.find(t=>t.id===state.editingTxnId);
     if(tx){
       const oldDesc=tx.description, oldAmt=tx.amount;
-      Object.assign(tx,{date,description:desc,amount:signedAmt,type,category:cat,status,notes,recurring,frequency});
+      Object.assign(tx,{date,description:desc,amount:signedAmt,type,category:cat,status,notes,recurring,frequency,updated_at:new Date().toISOString()});
       // If this is a recurring template, update all future auto-generated instances
       if(recurring){
         state.transactions.forEach(t=>{
@@ -2098,7 +2099,7 @@ function saveTxn(){
       }
     }
   } else {
-    const newTxn={id:genId(),date,description:desc,amount:signedAmt,type,category:cat,status,notes,recurring,frequency};
+    const newTxn={id:genId(),date,description:desc,amount:signedAmt,type,category:cat,status,notes,recurring,frequency,updated_at:new Date().toISOString()};
     state.transactions.push(newTxn);
     if(recurring){generateRecurring(newTxn);}
   }
@@ -4058,7 +4059,7 @@ const SHEET_ID = '10YsR8MTVdBzWQyVM4ITaBfxn01Vhj4Pitq9-Pe2bD6c';
 const TXN_SHEET = 'Transactions';
 const SET_SHEET = 'Settings';
 const DEL_SHEET = 'Deleted';
-const TXN_HEADERS = ['id','date','description','amount','type','category','status','notes'];
+const TXN_HEADERS = ['id','date','description','amount','type','category','status','notes','updated_at'];
 
 function syncStatusEl(msg, color='var(--text-muted)'){
   const el=document.getElementById('sync-status');
@@ -4168,6 +4169,18 @@ async function pullSettings(){
   // saveLocalData handled by syncSheet after merge
 }
 
+function stampAllTimestamps(){
+  if(!confirm('This will add the current timestamp to all transactions that don\'t have one, then sync to the sheet. Run this once on your accurate device only.'))return;
+  const now=new Date().toISOString();
+  let count=0;
+  state.transactions.forEach(t=>{
+    if(!t.updated_at){t.updated_at=now;count++;}
+  });
+  saveLocalData();
+  showToast(`Stamped ${count} transactions. Syncing…`);
+  syncSheet();
+}
+
 async function syncSheet(){
   if(!accessToken){
     if(!tokenClient){showToast('Google sign-in not ready. Refresh and try again.');return;}
@@ -4215,11 +4228,20 @@ async function syncSheet(){
     // then local overlays (picks up additions/edits from this device).
     // Anything in allDeletedIds is excluded from both.
     const merged=new Map();
+    // Sheet is the base (picks up transactions from other devices)
     state.transactions.forEach(t=>{
       if(!allDeletedIds.has(t.id))merged.set(t.id,t);
     });
+    // Local transactions: add new ones; for conflicts, newer updated_at wins
     localLiveTxns.forEach(t=>{
-      if(!allDeletedIds.has(t.id))merged.set(t.id,t);
+      if(allDeletedIds.has(t.id))return;
+      if(!merged.has(t.id)){
+        merged.set(t.id,t);
+      } else {
+        const sheetTs=merged.get(t.id).updated_at||'';
+        const localTs=t.updated_at||'';
+        if(localTs>sheetTs)merged.set(t.id,t);
+      }
     });
 
     state.transactions=Array.from(merged.values());

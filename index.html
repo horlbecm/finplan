@@ -2092,10 +2092,11 @@ function saveTxn(){
       // If this is a recurring template, update all future auto-generated instances
       if(recurring){
         state.transactions.forEach(t=>{
-          if(!t.recurring && t.description===oldDesc && t.amount===oldAmt && t.notes==='Auto-generated recurring' && t.date>=date){
+          if(!t.recurring && t.description===oldDesc && t.notes==='Auto-generated recurring' && t.date>=date && t.status==='Forecast'){
             Object.assign(t,{description:desc,amount:signedAmt,type,category:cat});
           }
         });
+        fillMissingRecurring(tx);
       }
     }
   } else {
@@ -2122,6 +2123,27 @@ function generateRecurring(txn){
     const futureDate=d.toISOString().split('T')[0];
     if(new Date(futureDate)>new Date(new Date().setFullYear(new Date().getFullYear()+2)))break;
     state.transactions.push({id:genId(),date:futureDate,description:txn.description,amount:txn.amount,type:txn.type,category:txn.category,status:'Forecast',notes:'Auto-generated recurring',recurring:false,frequency:''});
+  }
+}
+function fillMissingRecurring(txn){
+  const months={'Monthly':1,'Biweekly':0.5,'Weekly':0.25,'Annual':12};
+  const interval=months[txn.frequency]||1;
+  const start=new Date(txn.date+'T12:00:00');
+  const cutoff=new Date();cutoff.setFullYear(cutoff.getFullYear()+2);
+  for(let i=1;i<=Math.ceil(24/interval);i++){
+    const d=new Date(start);
+    if(txn.frequency==='Monthly')d.setMonth(d.getMonth()+i);
+    else if(txn.frequency==='Biweekly')d.setDate(d.getDate()+14*i);
+    else if(txn.frequency==='Weekly')d.setDate(d.getDate()+7*i);
+    else if(txn.frequency==='Annual')d.setFullYear(d.getFullYear()+i);
+    if(d>cutoff)break;
+    const futureDate=d.toISOString().split('T')[0];
+    const exists=state.transactions.some(t=>
+      !t.deleted&&t.notes==='Auto-generated recurring'&&t.description===txn.description&&t.date===futureDate
+    );
+    if(!exists){
+      state.transactions.push({id:genId(),date:futureDate,description:txn.description,amount:txn.amount,type:txn.type,category:txn.category,status:'Forecast',notes:'Auto-generated recurring',recurring:false,frequency:'',updated_at:new Date().toISOString()});
+    }
   }
 }
 function deleteTxn(){
